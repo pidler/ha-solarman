@@ -308,6 +308,12 @@ def postprocess_descriptions(coordinator):
 
     _LOGGER.debug(f"postprocess_descriptions: {descriptions}")
 
+def value_in_range(value, rule):
+    return value in rule.get("additional", []) or not (
+        (rule.get("min") is not None and value < rule["min"]) or
+        (rule.get("max") is not None and value > rule["max"]))
+
+
 def get_code(item, type, default = None):
     if REQUEST_CODE in item and (code := item[REQUEST_CODE]):
         if isinstance(code, int):

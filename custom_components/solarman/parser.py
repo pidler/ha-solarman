@@ -114,7 +114,7 @@ class ParameterParser:
         self._previous_result = {}
 
     def in_range(self, key, value, rule):
-        if ((min := rule.get("min")) is not None and value < min) or ((max := rule.get("max")) is not None and value > max):
+        if not value_in_range(value, rule):
             _LOGGER.debug(f"{key}: {value} is outside of range: {rule}")
             return False
 

@@ -182,6 +182,96 @@ parameters:
         rule: 1
         registers: [0x0050]
 
+  # Deye three-phase protocol, revision history through 2025-01-13, pp. 41-42:
+  # https://download.axilogi.com/DEYE/Other/MODBUS_RTU.pdf
+  # No startup writes. See docs/deye_remote_mode.md for unresolved firmware details.
+  - group: Remote Control
+    update_interval: 30
+    items:
+      - name: "Remote Mode"
+        platform: select
+        rule: 1
+        registers: [0x044C] # 1100
+        code: {read: 0x03, write: 0x10}
+        range: {min: 0, max: 3}
+        lookup:
+          - {key: 0, value: "Disabled"}
+          - {key: 1, value: "Remote mode 1"}
+          - {key: 2, value: "Remote mode 2"}
+          - {key: 3, value: "Remote mode 3"}
+
+      - name: "Remote Watchdog"
+        platform: number
+        description: "10-18000 seconds."
+        uom: "s"
+        rule: 1
+        registers: [0x044D] # 1101, unsigned: 0xFFFF is a sentinel, not -1
+        code: {read: 0x03, write: 0x10}
+        configurable: {min: 10, max: 18000, step: 1, mode: box, validate: true}
+        range: {min: 10, max: 18000}
+
+      - name: "Remote Watchdog Status"
+        platform: sensor
+        description: "Read-only status of the remote watchdog."
+        rule: 1
+        registers: [0x044D] # 1101
+        code: 0x03
+        range: {min: 10, max: 18000, additional: [65535]}
+        lookup:
+          - {key: default, value: "Enabled"}
+          - {key: 65535, value: "Disabled"}
+
+      - name: "Disable Remote Watchdog"
+        platform: button
+        description: "Writes 65535 to disable the remote watchdog."
+        rule: 0
+        registers: [0x044D] # 1101
+        code: {read: 0x03, write: 0x10}
+        value: {on: 65535}
+
+      - name: "Remote Power Control Mode"
+        platform: select
+        rule: 1
+        registers: [0x0450] # 1104
+        code: {read: 0x03, write: 0x10}
+        # The documented range is 0-1; Grid (2) only appears in the notes.
+        range: {min: 0, max: 1}
+        lookup:
+          - {key: 0, value: "AC-side control"}
+          - {key: 1, value: "Battery-side control"}
+
+      - name: "Remote Battery-side Control Strategy"
+        platform: select
+        description: "Power (2). The entity reads the device and never initializes it."
+        rule: 1
+        registers: [0x0451] # 1105
+        code: {read: 0x03, write: 0x10}
+        # 0/1 are reserved; 3-5 are intentionally outside this first version.
+        range: {min: 2, max: 2}
+        lookup:
+          - {key: 2, value: "Power"}
+
+      - name: "Remote Constant Power Setpoint"
+        platform: number
+        description: "Percent of rated power."
+        uom: "%"
+        scale: 0.1
+        rule: 2
+        registers: [0x0455] # 1109, signed 16-bit
+        code: {read: 0x03, write: 0x10}
+        configurable: {min: -120, max: 120, step: 0.1, mode: box, validate: true}
+        range: {min: -1200, max: 1200}
+
+      - name: "Remote Constant SOC Setpoint"
+        platform: number
+        uom: "%"
+        scale: 0.1
+        rule: 1
+        registers: [0x0456] # 1110; 800 = 80.0%, not register 1108
+        code: {read: 0x03, write: 0x10}
+        configurable: {min: 0, max: 100, step: 0.1, mode: box, validate: true}
+        range: {min: 0, max: 1000}
+
   - group: Settings
     update_interval: 300
     items:

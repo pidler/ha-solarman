@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from logging import getLogger
+from decimal import Decimal, InvalidOperation
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
@@ -40,6 +41,7 @@ class SolarmanNumberEntity(SolarmanWritableEntity, NumberEntity):
             self.scale = get_number(sensor["scale"])
 
         self.offset = None
+        self.write_range = sensor.get("range") if (sensor.get("configurable") or {}).get("validate") else None
         if "offset" in sensor:
             self.offset = get_number(sensor["offset"])
 
@@ -62,7 +64,19 @@ class SolarmanNumberEntity(SolarmanWritableEntity, NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         """Update the setting."""
-        value_int = int(value if self.scale is None else value / self.scale)
-        if self.offset is not None:
-            value_int += self.offset
+        if self.write_range is not None:
+            try:
+                raw = Decimal(str(value)) / Decimal(str(self.scale if self.scale is not None else 1))
+                raw += Decimal(str(self.offset if self.offset is not None else 0))
+                if not raw.is_finite() or raw != raw.to_integral_value():
+                    raise ValueError("Value must be finite and representable in whole register units")
+                value_int = int(raw)
+                if value_int < self.write_range["min"] or value_int > self.write_range["max"]:
+                    raise ValueError("Value is outside the documented register range")
+            except InvalidOperation as error:
+                raise ValueError("Invalid register value") from error
+        else:
+            value_int = int(value if self.scale is None else value / self.scale)
+            if self.offset is not None:
+                value_int += self.offset
         await self.write(value_int if value_int < 0xFFFF else 0xFFFF, get_number(value))
